@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Goods Details</title>
+    <!-- jquery -->
+    <script type="text/javascript" src="/js/jquery.min.js"></script>
+    <!-- bootstrap -->
+    <link rel="stylesheet" type="text/css" href="/bootstrap/css/bootstrap.min.css"/>
+    <script type="text/javascript" src="/bootstrap/js/bootstrap.min.js"></script>
+    <!-- layer -->
+    <script type="text/javascript" src="/layer/layer.js"></script>
+    <!-- common.js -->
+    <script type="text/javascript" src="/js/common.js"></script>
+</head>
+<body>
+<div class="panel panel-default">
+    <div class="panel-heading">Goods details</div>
+    <div class="panel-body">
+        <span id="userTip">You haven't logged in yet, please log in before proceeding.<br/></span>
+        <span>No delivery address</span>
+    </div>
+    <table class="table" id="goods">
+        <tr>
+            <td>Goods name</td>
+            <td colspan="3" id="goodsName"></td>
+        </tr>
+        <tr>
+            <td>Goods picture</td>
+            <td colspan="3"><img id="goodsImg" width="200" height="200"/></td>
+        </tr>
+        <tr>
+            <td>Seckill start time</td>
+            <td id="startTime"></td>
+            <td>
+                <input type="hidden" id="remainSeconds">
+<!--                <span th:if="${secKillStatus eq 0}">-->
+<!--                    Second Kill Countdown: <span id="countDown" th:text="${remainSeconds}"></span>s.-->
+<!--                </span>-->
+<!--                <span th:if="${secKillStatus eq 1}">Second Kill is going on.</span>-->
+<!--                <span th:if="${secKillStatus eq 2}">Second Kill is over.</span>-->
+                <span id="seckillTip"></span>
+            </td>
+            <td>
+<!--                <form id="secKillForm" method="post" action="/seckill/doSeckill">-->
+<!--                    <input type="hidden" name="goodsId" id="goodsId">-->
+<!--                    <button class="btn btn-primary btn-block" type="submit" id="buyButton">Second Kill</button>-->
+<!--                </form>-->
+                <button class="btn btn-primary btn-block" type="button" id="buyButton" onclick="doSeckill()">Second Kill</button>
+                <input type="hidden" name="goodsId" id="goodsId">
+            </td>
+        </tr>
+        <tr>
+            <td>Regular price</td>
+            <td colspan="3" id="goodsPrice"></td>
+        </tr>
+        <tr>
+            <td>Seckill price</td>
+            <td colspan="3" id="seckillPrice"></td>
+        </tr>
+        <tr>
+            <td>Stock quantity</td>
+            <td colspan="3" id="stockCount"></td>
+        </tr>
+    </table>
+</div>
+</body>
+<script>
+    $ (function (){
+        // countDown();
+        getDetails();
+    })
+
+    function doSeckill() {
+        $.ajax({
+            url: '/seckill/doSeckill',
+            type: 'POST',
+            data: {
+                goodsId:$("#goodsId").val()
+            },
+            success: function (data) {
+                if (data.code == 200){
+                    // window.location.href="/orderDetail.htm?orderId=" + data.obj.id;
+                    getResult($("#goodsId").val());
+                } else {
+                    layer.msg(data.message)
+                }
+            },
+            error:function (){
+                layer.msg("server request error")
+            }
+        })
+    }
+
+    function getResult(goodsId){
+        g_showLoading();
+        $.ajax({
+            url:"/seckill/result",
+            type:"GET",
+            data:{
+                goodsId: goodsId,
+            },
+            success: function (data) {
+                if (data.code == 200){
+                    let result = data.obj;
+                    if (result < 0) {
+                        layer.msg("Sorry, seckill fails");
+                    } else if (result == 0) {
+                        setTimeout(function (){
+                            getResult(goodsId);
+                        }, 50);
+                    } else {
+                        layer.confirm("Congratulations!Check order?", {btn:["Yes","Cancel"]},
+                        function (){
+                            window.location.href = "/orderDetail.htm?orderId=" + result;
+                        },
+                        function (){
+                            layer.close();
+                        })
+                    }
+                }
+            },
+            error: function (){
+                layer.msg("seckill error")
+            }
+        })
+    }
+    function getDetails(){
+        let goodsId = g_getQueryString("goodsId");
+        $.ajax({
+            url: '/goods/detail/'+goodsId,
+            type: 'GET',
+            success: function (data){
+                if (data.code == 200){
+                    render(data.obj);
+                } else {
+                    layer.msg("server request error");
+                }
+            },
+            error: function (){
+                layer.msg("server request error");
+            }
+        });
+    }
+
+    function render(detail){
+        let user = detail.user;
+        let goods = detail.goodsVo;
+        let remainSeconds = detail.remainSeconds;
+        if (user) {
+            $("#userTip").hide();
+        }
+        $("#goodsName").text(goods.goodsName);
+        $("#goodsImg").attr("src", goods.goodsImg);
+        $("#startTime").text(new Date(goods.startDate).format("yyyy-MM-dd HH:mm:ss"))
+        $("#remainSeconds").val(remainSeconds);
+        $("#goodsId").val(goods.id);
+        $("#goodsPrice").text(goods.goodsPrice);
+        $("#seckillPrice").text(goods.seckillPrice);
+        $("#stockCount").text(goods.stockCount);
+        countDown();
+    }
+    function countDown(){
+        let remainSeconds = $("#remainSeconds").val();
+        let timeout;
+        if (remainSeconds > 0) {
+            $("#buyButton").attr("disabled", true);
+            $("#seckillTip").html("seckill countdown: " + remainSeconds);
+            timeout = setTimeout(function (){
+                // $("#countDown").text(remainSeconds - 1);
+                $("#remainSeconds").val(remainSeconds - 1);
+                countDown();
+            }, 1000);
+        } else if (remainSeconds == 0){
+            $("#buyButton").attr("disabled", false);
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+            $("#seckillTip").html("Second Kill is going on.")
+        } else {
+            $("#buyButton").attr("disabled", true);
+            $("#seckillTip").html("Second Kill is over.")
+        }
+    }
+</script>
+</html>
